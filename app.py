@@ -453,7 +453,7 @@ elif st.session_state.tela == "consultar":
 
         df_mon = buscar_monitorias()
 
-        if not df_mon.empty:
+if not df_mon.empty:
 
     if filtro_turma != "Todas":
         df_mon = df_mon[df_mon["turma"] == filtro_turma]
