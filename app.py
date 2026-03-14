@@ -448,36 +448,31 @@ elif st.session_state.tela == "consultar":
             )
 
     # MONITORIAS
-    if tipo_consulta in ["Tudo", "Monitorias"]:
-        st.markdown("### Monitorias")
+if tipo_consulta in ["Tudo", "Monitorias"]:
+    st.markdown("### Monitorias")
 
-        df_mon = buscar_monitorias()
+    df_mon = buscar_monitorias()
 
-if not df_mon.empty:
+    if not df_mon.empty:
+        if filtro_turma != "Todas":
+            df_mon = df_mon[df_mon["turma"] == filtro_turma]
 
-    if filtro_turma != "Todas":
-        df_mon = df_mon[df_mon["turma"] == filtro_turma]
+        if filtro_monitor != "Todos":
+            df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
 
-    if filtro_monitor != "Todos":
-        df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
+        df_mon = filtrar_por_mes(df_mon, filtro_mes)
+        df_mon = df_mon.sort_values("data_obj", ascending=False)
 
-    df_mon = filtrar_por_mes(df_mon, filtro_mes)
-    df_mon = df_mon.sort_values("data_obj", ascending=False)
+        if df_mon.empty:
+            st.info("Nenhuma monitoria encontrada com esses filtros.")
+        else:
+            for _, linha in df_mon.iterrows():
+                st.markdown(f"**{linha['data']} — {linha['turma']}**")
+                st.write(f"**Monitor:** {linha['monitor']}")
+                st.write(f"**Conteúdo:** {linha['conteudo']}")
 
-if df_mon.empty:
-    st.info("Nenhuma monitoria encontrada com esses filtros.")
-else:
-    for _, linha in df_mon.iterrows():
-        st.markdown(f"**{linha['data']} — {linha['turma']}**")
-        st.write(f"**Monitor:** {linha['monitor']}")
-        st.write(f"**Conteúdo:** {linha['conteudo']}")
+                arquivo = (linha["arquivo_drive"] or "").strip()
+                if arquivo:
+                    st.write(f"**Arquivo no Drive:** {arquivo}")
 
-        arquivo = (linha["arquivo_drive"] or "").strip()
-        if arquivo:
-            st.write(f"**Arquivo no Drive:** {arquivo}")
-
-        st.markdown("---")
-
-    if st.button("Voltar ao menu", use_container_width=True):
-        st.session_state.tela = "menu"
-        st.rerun()
+                st.markdown("---")
