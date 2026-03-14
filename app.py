@@ -394,7 +394,7 @@ elif st.session_state.tela == "consultar":
     st.subheader("Consultar registros")
 
     with st.container():
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             filtro_turma = st.selectbox(
@@ -409,6 +409,13 @@ elif st.session_state.tela == "consultar":
                 list(MESES.keys()),
                 index=0,
             )
+
+        with col4:
+            filtro_monitor = st.selectbox(
+        "Monitor",
+            ["Todos"] + MONITORES,
+            :index=0,
+    )
 
         with col3:
             tipo_consulta = st.selectbox(
@@ -449,7 +456,8 @@ elif st.session_state.tela == "consultar":
         if not df_mon.empty:
             if filtro_turma != "Todas":
                 df_mon = df_mon[df_mon["turma"] == filtro_turma]
-
+            if filtro_monitor != "Todos":
+            df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
             df_mon = filtrar_por_mes(df_mon, filtro_mes)
             df_mon = df_mon.sort_values("data_obj", ascending=False)
 
