@@ -272,7 +272,7 @@ if st.session_state.mensagem:
 if st.session_state.tela == "menu":
     st.subheader("Menu principal")
 
-    col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         if st.button("Cadastrar atividade", use_container_width=True):
@@ -289,6 +289,12 @@ if st.session_state.tela == "menu":
             st.session_state.tela = "consultar"
             st.rerun()
 
+with col4:
+    filtro_monitor = st.selectbox(
+        "Monitor",
+        ["Todos"] + MONITORES,
+        index=0,
+    )
 
 # =========================
 # CADASTRO DE ATIVIDADE
@@ -449,6 +455,8 @@ elif st.session_state.tela == "consultar":
         if not df_mon.empty:
             if filtro_turma != "Todas":
                 df_mon = df_mon[df_mon["turma"] == filtro_turma]
+            if filtro_monitor != "Todos":
+    df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
 
             df_mon = filtrar_por_mes(df_mon, filtro_mes)
             df_mon = df_mon.sort_values("data_obj", ascending=False)
