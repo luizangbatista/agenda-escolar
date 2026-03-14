@@ -463,7 +463,7 @@ elif st.session_state.tela == "consultar":
         df_mon = df_mon.sort_values("data_obj", ascending=False)
 
             if df_mon.empty:
-            st.info("Nenhuma monitoria encontrada com esses filtros.")
+                st.info("Nenhuma monitoria encontrada com esses filtros.")
             else:
                 for _, linha in df_mon.iterrows():
                 st.markdown(f"**{linha['data']} — {linha['turma']}**")
@@ -472,6 +472,6 @@ elif st.session_state.tela == "consultar":
 
                 arquivo = (linha["arquivo_drive"] or "").strip()
                     if arquivo:
-                    st.write(f"**Arquivo no Drive:** {arquivo}")
+                        st.write(f"**Arquivo no Drive:** {arquivo}")
 
                 st.markdown("---")
