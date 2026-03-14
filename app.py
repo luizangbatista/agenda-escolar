@@ -259,7 +259,7 @@ corrigir_dados_antigos()
 # =========================
 # CABEÇALHO
 # =========================
-st.title("📚 SisteMat")
+st.title("📚 SisteMat 🗓")
 
 if st.session_state.mensagem:
     st.success(st.session_state.mensagem)
