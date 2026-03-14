@@ -18,10 +18,11 @@ st.set_page_config(
 # LISTAS FIXAS DO APP
 # =========================
 TURMAS = [
-    "8º ano",
-    "7º ano",
     "6º ano A",
     "6º ano B",
+    "7º ano",
+    "8º ano",
+    "9º ano",
     "1ª série EM",
     "2ª série EM",
 ]
