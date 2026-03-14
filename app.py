@@ -471,7 +471,7 @@ elif st.session_state.tela == "consultar":
                     st.write(f"**Conteúdo:** {linha['conteudo']}")
 
                 arquivo = (linha["arquivo_drive"] or "").strip()
-                    if arquivo:
-                        st.write(f"**Arquivo no Drive:** {arquivo}")
+                if arquivo:
+                    st.write(f"**Arquivo no Drive:** {arquivo}")
 
                 st.markdown("---")
