@@ -414,7 +414,7 @@ elif st.session_state.tela == "consultar":
             filtro_monitor = st.selectbox(
         "Monitor",
             ["Todos"] + MONITORES,
-            :index=0,
+            index=0,
     )
 
         with col3:
