@@ -1,21 +1,29 @@
-import sqlite3
-from datetime import date, datetime
+import os
+from datetime import datetime
 
 import pandas as pd
 import streamlit as st
-
 
 # =========================
 # CONFIGURAÇÃO DA PÁGINA
 # =========================
 st.set_page_config(
-    page_title="SisteMat CEFAE",
-    page_icon="📚",
-    layout="centered",
+    page_title="SisteMat",
+    page_icon="📘",
+    layout="wide"
 )
 
+st.title("📘 SisteMat")
+st.caption("Sistema de registro e consulta de avaliações, atividades e monitorias")
+
 # =========================
-# LISTAS FIXAS DO APP
+# ARQUIVOS DE DADOS
+# =========================
+ARQ_AVALIACOES = "avaliacoes.csv"
+ARQ_MONITORIA = "monitoria.csv"
+
+# =========================
+# LISTAS FIXAS
 # =========================
 TURMAS = [
     "6º ano A",
@@ -28,10 +36,13 @@ TURMAS = [
 ]
 
 TIPOS_AVALIACAO = [
-    "Testinho",
-    "Mensal",
-    "Trimestral",
-    "Suplementar",
+    "Atividade avaliativa",
+    "Teste",
+    "Prova",
+    "Trabalho",
+    "Simulado",
+    "Lista",
+    "Outro",
 ]
 
 MONITORES = [
@@ -42,7 +53,6 @@ MONITORES = [
 ]
 
 MESES = {
-    "Todos": 0,
     "Janeiro": 1,
     "Fevereiro": 2,
     "Março": 3,
@@ -57,424 +67,272 @@ MESES = {
     "Dezembro": 12,
 }
 
-DB_NAME = "agenda.db"
-
-
-# =========================
-# BANCO DE DADOS
-# =========================
-def get_connection():
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
-
-
-def init_db():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS atividades_avaliativas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data TEXT NOT NULL,
-            tipo_atividade TEXT NOT NULL,
-            turma TEXT NOT NULL
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS monitorias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data TEXT NOT NULL,
-            turma TEXT NOT NULL,
-            monitor TEXT,
-            conteudo TEXT NOT NULL,
-            arquivo_drive TEXT
-        )
-    """)
-
-    # Migrações simples para bancos antigos
-    colunas_monitorias = [col[1] for col in cur.execute("PRAGMA table_info(monitorias)").fetchall()]
-
-    if "monitor" not in colunas_monitorias:
-        cur.execute("ALTER TABLE monitorias ADD COLUMN monitor TEXT")
-
-    if "arquivo_drive" not in colunas_monitorias:
-        cur.execute("ALTER TABLE monitorias ADD COLUMN arquivo_drive TEXT")
-
-    conn.commit()
-    conn.close()
-
-
 # =========================
 # FUNÇÕES AUXILIARES
 # =========================
-def data_para_texto(data_obj):
-    return data_obj.strftime("%d/%m/%Y")
+def inicializar_arquivos():
+    if not os.path.exists(ARQ_AVALIACOES):
+        df = pd.DataFrame(columns=["data", "turma", "tipo", "descricao", "monitor"])
+        df.to_csv(ARQ_AVALIACOES, index=False, encoding="utf-8-sig")
+
+    if not os.path.exists(ARQ_MONITORIA):
+        df = pd.DataFrame(columns=["data", "turma", "conteudo", "arquivo_drive", "monitor"])
+        df.to_csv(ARQ_MONITORIA, index=False, encoding="utf-8-sig")
 
 
-def texto_para_data(data_texto):
-    return datetime.strptime(data_texto, "%d/%m/%Y")
+def carregar_csv(caminho):
+    try:
+        return pd.read_csv(caminho, encoding="utf-8-sig")
+    except Exception:
+        return pd.DataFrame()
 
 
-def normalizar_turma(valor):
-    mapa = {
-        "8o": "8º ano",
-        "8º": "8º ano",
-        "8 ano": "8º ano",
-        "7o": "7º ano",
-        "7º": "7º ano",
-        "7 ano": "7º ano",
-        "6A": "6º ano A",
-        "6º A": "6º ano A",
-        "6 ano A": "6º ano A",
-        "6B": "6º ano B",
-        "6º B": "6º ano B",
-        "6 ano B": "6º ano B",
-        "1ª série": "1ª série EM",
-        "1EM": "1ª série EM",
-        "1º EM": "1ª série EM",
-        "2ª série": "2ª série EM",
-        "2EM": "2ª série EM",
-        "2º EM": "2ª série EM",
+def salvar_csv(df, caminho):
+    df.to_csv(caminho, index=False, encoding="utf-8-sig")
+
+
+def formatar_data_br(data_str):
+    try:
+        return pd.to_datetime(data_str).strftime("%d/%m/%Y")
+    except Exception:
+        return data_str
+
+
+def extrair_ano_ordem(turma):
+    ordem = {
+        "6º ano A": 1,
+        "6º ano B": 2,
+        "7º ano": 3,
+        "8º ano": 4,
+        "9º ano": 5,
+        "1ª série EM": 6,
+        "2ª série EM": 7,
     }
-    return mapa.get(valor, valor)
+    return ordem.get(turma, 999)
 
 
-def corrigir_dados_antigos():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    # Atividades
-    linhas = cur.execute("SELECT id, turma FROM atividades_avaliativas").fetchall()
-    for linha_id, turma in linhas:
-        turma_corrigida = normalizar_turma(turma)
-        if turma_corrigida != turma:
-            cur.execute(
-                "UPDATE atividades_avaliativas SET turma = ? WHERE id = ?",
-                (turma_corrigida, linha_id),
-            )
-
-    # Monitorias
-    linhas = cur.execute("SELECT id, turma FROM monitorias").fetchall()
-    for linha_id, turma in linhas:
-        turma_corrigida = normalizar_turma(turma)
-        if turma_corrigida != turma:
-            cur.execute(
-                "UPDATE monitorias SET turma = ? WHERE id = ?",
-                (turma_corrigida, linha_id),
-            )
-
-    conn.commit()
-    conn.close()
-
-
-def inserir_atividade(data_atividade, tipo_atividade, turma):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO atividades_avaliativas (data, tipo_atividade, turma)
-        VALUES (?, ?, ?)
-    """, (data_para_texto(data_atividade), tipo_atividade, turma))
-    conn.commit()
-    conn.close()
-
-
-def inserir_monitoria(data_monitoria, turma, monitor, conteudo, arquivo_drive):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO monitorias (data, turma, monitor, conteudo, arquivo_drive)
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        data_para_texto(data_monitoria),
-        turma,
-        monitor,
-        conteudo.strip(),
-        arquivo_drive.strip(),
-    ))
-    conn.commit()
-    conn.close()
-
-
-def buscar_atividades():
-    conn = get_connection()
-    query = "SELECT id, data, tipo_atividade, turma FROM atividades_avaliativas"
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-
-    if not df.empty:
-        df["data_obj"] = df["data"].apply(texto_para_data)
-    return df
-
-
-def buscar_monitorias():
-    conn = get_connection()
-    query = "SELECT id, data, turma, monitor, conteudo, arquivo_drive FROM monitorias"
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-
-    if not df.empty:
-        df["data_obj"] = df["data"].apply(texto_para_data)
-    return df
-
-
-def filtrar_por_mes(df, nome_mes):
-    if df.empty or nome_mes == "Todos":
-        return df
-    numero_mes = MESES[nome_mes]
-    return df[df["data_obj"].dt.month == numero_mes]
-
-
-def formatar_dataframe_atividades(df):
+def preparar_df_avaliacoes(df):
     if df.empty:
         return df
-
     df = df.copy()
-    df = df.sort_values("data_obj", ascending=False)
-    return df[["data", "tipo_atividade", "turma"]].rename(
-        columns={
-            "data": "Data",
-            "tipo_atividade": "Tipo de atividade",
-            "turma": "Turma",
-        }
-    )
+    df["data"] = pd.to_datetime(df["data"], errors="coerce")
+    df["mes"] = df["data"].dt.month
+    df["ordem_turma"] = df["turma"].apply(extrair_ano_ordem)
+    return df
 
 
-# =========================
-# ESTADO DA TELA
-# =========================
-if "tela" not in st.session_state:
-    st.session_state.tela = "menu"
+def preparar_df_monitoria(df):
+    if df.empty:
+        return df
+    df = df.copy()
+    df["data"] = pd.to_datetime(df["data"], errors="coerce")
+    df["mes"] = df["data"].dt.month
+    df["ordem_turma"] = df["turma"].apply(extrair_ano_ordem)
+    return df
 
-if "mensagem" not in st.session_state:
-    st.session_state.mensagem = ""
+
+def voltar_menu():
+    st.session_state["tela"] = "menu"
+    st.rerun()
 
 
 # =========================
 # INICIALIZAÇÃO
 # =========================
-init_db()
-corrigir_dados_antigos()
+inicializar_arquivos()
 
-
-# =========================
-# CABEÇALHO
-# =========================
-st.title("📚 SisteMat CEFAE")
-
-if st.session_state.mensagem:
-    st.success(st.session_state.mensagem)
-    st.session_state.mensagem = ""
-
+if "tela" not in st.session_state:
+    st.session_state["tela"] = "menu"
 
 # =========================
 # MENU PRINCIPAL
 # =========================
-if st.session_state.tela == "menu":
+if st.session_state["tela"] == "menu":
     st.subheader("Menu principal")
 
-col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("Cadastrar atividade", use_container_width=True):
-            st.session_state.tela = "cad_atividade"
+        if st.button("➕ Cadastrar avaliação/atividade", use_container_width=True):
+            st.session_state["tela"] = "cad_avaliacao"
             st.rerun()
 
     with col2:
-        if st.button("Cadastrar monitoria", use_container_width=True):
-            st.session_state.tela = "cad_monitoria"
+        if st.button("👩‍🏫 Cadastrar monitoria", use_container_width=True):
+            st.session_state["tela"] = "cad_monitoria"
             st.rerun()
 
     with col3:
-        if st.button("Consultar", use_container_width=True):
-            st.session_state.tela = "consultar"
+        if st.button("🔎 Consultar registros", use_container_width=True):
+            st.session_state["tela"] = "consulta"
             st.rerun()
 
-with col4:
-    filtro_monitor = st.selectbox(
-        "Monitor",
-        ["Todos"] + MONITORES,
-        index=0,
-    )
-
 # =========================
-# CADASTRO DE ATIVIDADE
+# CADASTRO DE AVALIAÇÃO
 # =========================
-elif st.session_state.tela == "cad_atividade":
-    st.subheader("Cadastrar atividade avaliativa")
+elif st.session_state["tela"] == "cad_avaliacao":
+    st.subheader("Cadastrar avaliação / atividade avaliativa")
 
-    with st.form("form_atividade"):
-        data_atividade = st.date_input("Data", value=date.today())
-
-        turma = st.selectbox(
-            "Turma",
-            TURMAS,
-            index=None,
-            placeholder="Selecione a turma",
-        )
-
-        tipo_atividade = st.selectbox(
-            "Tipo de atividade avaliativa",
-            TIPOS_AVALIACAO,
-            index=None,
-            placeholder="Selecione o tipo",
-        )
+    with st.form("form_avaliacao", clear_on_submit=True):
+        data = st.date_input("Data", format="DD/MM/YYYY")
+        turma = st.selectbox("Turma", TURMAS)
+        tipo = st.selectbox("Tipo de avaliação", TIPOS_AVALIACAO)
+        descricao = st.text_area("Descrição / conteúdo")
+        monitor = st.selectbox("Monitor", MONITORES)
 
         col1, col2 = st.columns(2)
         salvar = col1.form_submit_button("Salvar", use_container_width=True)
-        voltar = col2.form_submit_button("Voltar ao menu", use_container_width=True)
-
-    if voltar:
-        st.session_state.tela = "menu"
-        st.rerun()
+        cancelar = col2.form_submit_button("Voltar ao menu", use_container_width=True)
 
     if salvar:
-        if not turma or not tipo_atividade:
-            st.error("Preencha todos os campos.")
-        else:
-            inserir_atividade(
-                data_atividade=data_atividade,
-                tipo_atividade=tipo_atividade,
-                turma=turma,
-            )
-            st.session_state.mensagem = "Atividade cadastrada com sucesso."
-            st.session_state.tela = "menu"
-            st.rerun()
+        df = carregar_csv(ARQ_AVALIACOES)
+        novo = pd.DataFrame([{
+            "data": pd.to_datetime(data).strftime("%Y-%m-%d"),
+            "turma": turma,
+            "tipo": tipo,
+            "descricao": descricao,
+            "monitor": monitor,
+        }])
+        df = pd.concat([df, novo], ignore_index=True)
+        salvar_csv(df, ARQ_AVALIACOES)
+        st.success("Registro salvo com sucesso.")
+        voltar_menu()
 
+    if cancelar:
+        voltar_menu()
 
 # =========================
 # CADASTRO DE MONITORIA
 # =========================
-elif st.session_state.tela == "cad_monitoria":
+elif st.session_state["tela"] == "cad_monitoria":
     st.subheader("Cadastrar monitoria")
 
-    with st.form("form_monitoria"):
-        data_monitoria = st.date_input("Data", value=date.today(), key="data_monitoria")
-
-        turma = st.selectbox(
-            "Turma",
-            TURMAS,
-            index=None,
-            placeholder="Selecione a turma",
-            key="turma_monitoria",
-        )
-
-        monitor = st.selectbox(
-            "Monitor",
-            MONITORES,
-            index=None,
-            placeholder="Selecione o monitor",
-        )
-
+    with st.form("form_monitoria", clear_on_submit=True):
+        data = st.date_input("Data", format="DD/MM/YYYY")
+        turma = st.selectbox("Turma", TURMAS)
         conteudo = st.text_area("Conteúdo")
-
         arquivo_drive = st.text_input("Nome do arquivo no Drive (se houver)")
+        monitor = st.selectbox("Monitor", MONITORES)
 
         col1, col2 = st.columns(2)
         salvar = col1.form_submit_button("Salvar", use_container_width=True)
-        voltar = col2.form_submit_button("Voltar ao menu", use_container_width=True)
-
-    if voltar:
-        st.session_state.tela = "menu"
-        st.rerun()
+        cancelar = col2.form_submit_button("Voltar ao menu", use_container_width=True)
 
     if salvar:
-        if not turma or not monitor or not conteudo.strip():
-            st.error("Preencha data, turma, monitor e conteúdo.")
-        else:
-            inserir_monitoria(
-                data_monitoria=data_monitoria,
-                turma=turma,
-                monitor=monitor,
-                conteudo=conteudo,
-                arquivo_drive=arquivo_drive,
-            )
-            st.session_state.mensagem = "Monitoria cadastrada com sucesso."
-            st.session_state.tela = "menu"
-            st.rerun()
+        df = carregar_csv(ARQ_MONITORIA)
+        novo = pd.DataFrame([{
+            "data": pd.to_datetime(data).strftime("%Y-%m-%d"),
+            "turma": turma,
+            "conteudo": conteudo,
+            "arquivo_drive": arquivo_drive,
+            "monitor": monitor,
+        }])
+        df = pd.concat([df, novo], ignore_index=True)
+        salvar_csv(df, ARQ_MONITORIA)
+        st.success("Monitoria salva com sucesso.")
+        voltar_menu()
 
+    if cancelar:
+        voltar_menu()
 
 # =========================
 # CONSULTA
 # =========================
-elif st.session_state.tela == "consultar":
-    st.subheader("Consultar registros")
+elif st.session_state["tela"] == "consulta":
+    st.subheader("Consulta de registros")
 
-    with st.container():
-        col1, col2, col3 = st.columns(3)
+    df_av = preparar_df_avaliacoes(carregar_csv(ARQ_AVALIACOES))
+    df_mo = preparar_df_monitoria(carregar_csv(ARQ_MONITORIA))
 
-        with col1:
-            filtro_turma = st.selectbox(
-                "Turma",
-                ["Todas"] + TURMAS,
-                index=0,
+    st.markdown("### Filtros")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        tipo_registro = st.selectbox(
+            "Tipo de registro",
+            ["Avaliações/Atividades", "Monitorias"]
+        )
+
+    with col2:
+        turma_filtro = st.selectbox("Turma", ["Todas"] + TURMAS)
+
+    with col3:
+        mes_filtro = st.selectbox("Mês", ["Todos"] + list(MESES.keys()))
+
+    with col4:
+        monitor_filtro = st.selectbox("Monitor", ["Todos"] + MONITORES)
+
+    if tipo_registro == "Avaliações/Atividades":
+        if df_av.empty:
+            st.info("Nenhum registro de avaliação/atividade encontrado.")
+        else:
+            df_filtrado = df_av.copy()
+
+            if turma_filtro != "Todas":
+                df_filtrado = df_filtrado[df_filtrado["turma"] == turma_filtro]
+
+            if mes_filtro != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["mes"] == MESES[mes_filtro]]
+
+            if monitor_filtro != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["monitor"] == monitor_filtro]
+
+            tipo_filtro = st.selectbox("Tipo de avaliação", ["Todos"] + TIPOS_AVALIACAO)
+
+            if tipo_filtro != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["tipo"] == tipo_filtro]
+
+            df_filtrado = df_filtrado.sort_values(
+                by=["data", "ordem_turma"],
+                ascending=[False, True]
             )
 
-        with col2:
-            filtro_mes = st.selectbox(
-                "Mês",
-                list(MESES.keys()),
-                index=0,
+            if df_filtrado.empty:
+                st.warning("Nenhum resultado encontrado com esses filtros.")
+            else:
+                exibir = df_filtrado.copy()
+                exibir["data"] = exibir["data"].dt.strftime("%d/%m/%Y")
+                exibir = exibir[["data", "tipo", "turma", "descricao", "monitor"]]
+                exibir.columns = ["Data", "Tipo de atividade", "Turma", "Descrição", "Monitor"]
+                st.dataframe(exibir, use_container_width=True, hide_index=True)
+
+    else:
+        if df_mo.empty:
+            st.info("Nenhum registro de monitoria encontrado.")
+        else:
+            df_filtrado = df_mo.copy()
+
+            if turma_filtro != "Todas":
+                df_filtrado = df_filtrado[df_filtrado["turma"] == turma_filtro]
+
+            if mes_filtro != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["mes"] == MESES[mes_filtro]]
+
+            if monitor_filtro != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["monitor"] == monitor_filtro]
+
+            df_filtrado = df_filtrado.sort_values(
+                by=["data", "ordem_turma"],
+                ascending=[False, True]
             )
 
-        with col3:
-            tipo_consulta = st.selectbox(
-                "Seção",
-                ["Tudo", "Atividades avaliativas", "Monitorias"],
-                index=0,
-            )
+            if df_filtrado.empty:
+                st.warning("Nenhum resultado encontrado com esses filtros.")
+            else:
+                for _, row in df_filtrado.iterrows():
+                    data_formatada = row["data"].strftime("%d/%m/%Y") if pd.notnull(row["data"]) else ""
+                    st.markdown(
+                        f"""
+                        ---
+                        **Data:** {data_formatada}  
+                        **Turma:** {row['turma']}  
+                        **Monitor:** {row['monitor']}  
+                        **Conteúdo:** {row['conteudo']}  
+                        **Nome do arquivo no Drive:** {row['arquivo_drive'] if pd.notnull(row['arquivo_drive']) and str(row['arquivo_drive']).strip() else "—"}
+                        """
+                    )
 
     st.markdown("---")
-
-    # ATIVIDADES
-    if tipo_consulta in ["Tudo", "Atividades avaliativas"]:
-        st.markdown("### Atividades avaliativas")
-
-        df_ativ = buscar_atividades()
-
-        if not df_ativ.empty:
-            if filtro_turma != "Todas":
-                df_ativ = df_ativ[df_ativ["turma"] == filtro_turma]
-
-            df_ativ = filtrar_por_mes(df_ativ, filtro_mes)
-
-        if df_ativ.empty:
-            st.info("Nenhuma atividade avaliativa encontrada com esses filtros.")
-        else:
-            st.dataframe(
-                formatar_dataframe_atividades(df_ativ),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-    # MONITORIAS
-    if tipo_consulta in ["Tudo", "Monitorias"]:
-        st.markdown("### Monitorias")
-
-        df_mon = buscar_monitorias()
-
-        if not df_mon.empty:
-            if filtro_turma != "Todas":
-                df_mon = df_mon[df_mon["turma"] == filtro_turma]
-            if filtro_monitor != "Todos":
-    df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
-
-            df_mon = filtrar_por_mes(df_mon, filtro_mes)
-            df_mon = df_mon.sort_values("data_obj", ascending=False)
-
-        if df_mon.empty:
-            st.info("Nenhuma monitoria encontrada com esses filtros.")
-        else:
-            for _, linha in df_mon.iterrows():
-                st.markdown(f"**{linha['data']} — {linha['turma']}**")
-                st.write(f"**Monitor:** {linha['monitor']}")
-                st.write(f"**Conteúdo:** {linha['conteudo']}")
-
-                arquivo = (linha["arquivo_drive"] or "").strip()
-                if arquivo:
-                    st.write(f"**Arquivo no Drive:** {arquivo}")
-
-                st.markdown("---")
-
-    if st.button("Voltar ao menu", use_container_width=True):
-        st.session_state.tela = "menu"
-        st.rerun()
+    if st.button("⬅️ Voltar ao menu principal"):
+        voltar_menu()
