@@ -1,252 +1,299 @@
-import sqlite3 
-from datetime import date
+import sqlite3
+from datetime import datetime
+import pandas as pd
+import streamlit as st
 
-import pandas 
-as pd import streamlit as st
 
-=========================
+# =========================
+# CONFIGURAÇÃO DA PÁGINA
+# =========================
+st.set_page_config(
+    page_title="Agenda Escolar",
+    page_icon="📚",
+    layout="wide"
+)
 
-CONFIGURAÇÃO DA PÁGINA
 
-=========================
-
-st.set_page_config(page_title="Agenda Escolar", page_icon="📘", layout="wide")
-
-=========================
-
-LISTAS FIXAS
-
-=========================
-
-TURMAS = [ "Sexto A", "Sexto B", "Sétimo", "Oitavo", "Nono", "Primeira série do ensino médio", "Segunda série do ensino médio", ]
-
-TIPOS_ATIVIDADE = [ "Avaliação mensal", "Testinho", "Avaliação trimestral", "Avaliação suplementar", ]
-
-PROFESSORES = [ "Luísa", "Arthur", "Rafael", "Gabriel", ]
-
-MESES = { "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12, }
-
-=========================
-
-BANCO DE DADOS
-
-=========================
-
+# =========================
+# BANCO DE DADOS
+# =========================
 DB_NAME = "agenda_escolar.db"
 
-def get_connection(): return sqlite3.connect(DB_NAME, check_same_thread=False)
 
-conn = get_connection()
+def conectar():
+    return sqlite3.connect(DB_NAME, check_same_thread=False)
 
-def criar_tabelas(): cursor = conn.cursor()
 
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS atividades (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        turma TEXT NOT NULL,
-        tipo TEXT NOT NULL
-    )
-    """
-)
+def criar_tabelas():
+    conn = conectar()
+    cursor = conn.cursor()
 
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS monitorias (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        turma TEXT NOT NULL,
-        professor TEXT NOT NULL,
-        conteudo TEXT NOT NULL,
-        observacoes TEXT
-    )
-    """
-)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS avaliacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL,
+            turma TEXT NOT NULL,
+            tipo_atividade TEXT NOT NULL,
+            descricao TEXT
+        )
+    """)
 
-conn.commit()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monitorias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL,
+            turma TEXT NOT NULL,
+            conteudo TEXT NOT NULL,
+            observacao TEXT
+        )
+    """)
 
+    conn.commit()
+    conn.close()
+
+
+def inserir_avaliacao(data, turma, tipo_atividade, descricao):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO avaliacoes (data, turma, tipo_atividade, descricao)
+        VALUES (?, ?, ?, ?)
+    """, (data, turma, tipo_atividade, descricao))
+    conn.commit()
+    conn.close()
+
+
+def inserir_monitoria(data, turma, conteudo, observacao):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO monitorias (data, turma, conteudo, observacao)
+        VALUES (?, ?, ?, ?)
+    """, (data, turma, conteudo, observacao))
+    conn.commit()
+    conn.close()
+
+
+def carregar_avaliacoes():
+    conn = conectar()
+    df = pd.read_sql_query("SELECT * FROM avaliacoes", conn)
+    conn.close()
+    return df
+
+
+def carregar_monitorias():
+    conn = conectar()
+    df = pd.read_sql_query("SELECT * FROM monitorias", conn)
+    conn.close()
+    return df
+
+
+# =========================
+# FUNÇÕES AUXILIARES
+# =========================
+def formatar_data_br(data_str):
+    try:
+        return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except Exception:
+        return data_str
+
+
+def adicionar_coluna_mes(df):
+    if not df.empty and "data" in df.columns:
+        df["data_dt"] = pd.to_datetime(df["data"], errors="coerce")
+        df["mes"] = df["data_dt"].dt.month
+        df["ano"] = df["data_dt"].dt.year
+    return df
+
+
+def filtrar_por_mes(df, mes):
+    if df.empty:
+        return df
+    if mes == "Todos":
+        return df
+    return df[df["mes"] == int(mes)]
+
+
+def filtrar_por_turma(df, turma):
+    if df.empty:
+        return df
+    if turma == "Todas":
+        return df
+    return df[df["turma"] == turma]
+
+
+# =========================
+# INICIALIZAÇÃO
+# =========================
 criar_tabelas()
 
-=========================
+st.title("📚 Agenda Escolar")
+st.caption("Cadastro e consulta de avaliações e monitorias")
 
-FUNÇÕES AUXILIARES
 
-=========================
+# =========================
+# ABAS PRINCIPAIS
+# =========================
+aba1, aba2, aba3 = st.tabs(["Cadastrar Avaliação", "Cadastrar Monitoria", "Consultar"])
 
-def inserir_atividade(data_registro, turma, tipo): cursor = conn.cursor() cursor.execute( "INSERT INTO atividades (data, turma, tipo) VALUES (?, ?, ?)", (data_registro.isoformat(), turma, tipo), ) conn.commit()
 
-def inserir_monitoria(data_registro, turma, professor, conteudo, observacoes): cursor = conn.cursor() cursor.execute( """ INSERT INTO monitorias (data, turma, professor, conteudo, observacoes) VALUES (?, ?, ?, ?, ?) """, (data_registro.isoformat(), turma, professor, conteudo, observacoes), ) conn.commit()
+# =========================
+# ABA 1 - CADASTRAR AVALIAÇÃO
+# =========================
+with aba1:
+    st.subheader("Cadastrar atividade avaliativa")
 
-def consultar_atividades(turmas=None, meses=None): query = "SELECT data, tipo, turma FROM atividades WHERE 1=1" params = []
+    with st.form("form_avaliacao"):
+        col1, col2 = st.columns(2)
 
-if turmas:
-    placeholders = ",".join(["?"] * len(turmas))
-    query += f" AND turma IN ({placeholders})"
-    params.extend(turmas)
+        with col1:
+            data_av = st.date_input("Data")
+            turma_av = st.text_input("Turma", placeholder="Ex.: 7º Ano A")
 
-if meses:
-    placeholders = ",".join(["?"] * len(meses))
-    query += f" AND CAST(strftime('%m', data) AS INTEGER) IN ({placeholders})"
-    params.extend(meses)
-
-query += " ORDER BY data DESC"
-
-return pd.read_sql_query(query, conn, params=params)
-
-def consultar_monitorias(turmas=None, professores=None, meses=None): query = """ SELECT data, turma, professor, conteudo, observacoes FROM monitorias WHERE 1=1 """ params = []
-
-if turmas:
-    placeholders = ",".join(["?"] * len(turmas))
-    query += f" AND turma IN ({placeholders})"
-    params.extend(turmas)
-
-if professores:
-    placeholders = ",".join(["?"] * len(professores))
-    query += f" AND professor IN ({placeholders})"
-    params.extend(professores)
-
-if meses:
-    placeholders = ",".join(["?"] * len(meses))
-    query += f" AND CAST(strftime('%m', data) AS INTEGER) IN ({placeholders})"
-    params.extend(meses)
-
-query += " ORDER BY data DESC"
-
-return pd.read_sql_query(query, conn, params=params)
-
-def formatar_data_br(data_iso): try: return pd.to_datetime(data_iso).strftime("%d/%m/%Y") except Exception: return data_iso
-
-def exibir_bloco_monitoria(linha): st.markdown( f""" <div style="
-border: 1px solid #d9d9d9;
-border-radius: 12px;
-padding: 16px;
-margin-bottom: 14px;
-background-color: #fafafa;
-"> <p><strong>Turma:</strong> {linha['turma']}</p> <p><strong>Data:</strong> {formatar_data_br(linha['data'])}</p> <p><strong>Professor:</strong> {linha['professor']}</p> <p><strong>Conteúdo:</strong> {linha['conteudo']}</p> <p><strong>Observações:</strong> {linha['observacoes'] if linha['observacoes'] else '-'}</p> </div> """, unsafe_allow_html=True, )
-
-=========================
-
-SIDEBAR / NAVEGAÇÃO
-
-=========================
-
-st.sidebar.title("📘 Agenda Escolar") selecao = st.sidebar.radio( "Escolha uma área:", [ "Cadastrar atividade avaliativa", "Consultar atividades", "Registrar monitoria", "Consultar monitorias", ], )
-
-=========================
-
-TELA: CADASTRAR ATIVIDADE
-
-=========================
-
-if selecao == "Cadastrar atividade avaliativa": st.title("Cadastrar atividade avaliativa")
-
-with st.form("form_atividade", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        data_atividade = st.date_input("Data", value=date.today(), format="DD/MM/YYYY")
-    with col2:
-        turma_atividade = st.selectbox("Turma", TURMAS)
-    with col3:
-        tipo_atividade = st.selectbox("Tipo de atividade", TIPOS_ATIVIDADE)
-
-    salvar_atividade = st.form_submit_button("Salvar")
-
-    if salvar_atividade:
-        inserir_atividade(data_atividade, turma_atividade, tipo_atividade)
-        st.success("Atividade avaliativa cadastrada com sucesso.")
-
-=========================
-
-TELA: CONSULTAR ATIVIDADES
-
-=========================
-
-elif selecao == "Consultar atividades": st.title("Consultar atividades")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    turmas_filtro = st.multiselect("Filtrar por turma", TURMAS)
-
-with col2:
-    meses_escolhidos = st.multiselect("Filtrar por mês", list(MESES.keys()))
-
-meses_numeros = [MESES[mes] for mes in meses_escolhidos]
-
-df_atividades = consultar_atividades(turmas=turmas_filtro, meses=meses_numeros)
-
-if df_atividades.empty:
-    st.info("Nenhuma atividade encontrada para os filtros selecionados.")
-else:
-    df_atividades["data"] = df_atividades["data"].apply(formatar_data_br)
-    df_atividades.columns = ["Data", "Tipo de atividade", "Turma"]
-    st.dataframe(df_atividades, use_container_width=True, hide_index=True)
-
-=========================
-
-TELA: REGISTRAR MONITORIA
-
-=========================
-
-elif selecao == "Registrar monitoria": st.title("Registrar monitoria")
-
-with st.form("form_monitoria", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        data_monitoria = st.date_input("Data", value=date.today(), format="DD/MM/YYYY")
-    with col2:
-        turma_monitoria = st.selectbox("Turma", TURMAS)
-    with col3:
-        professor_monitoria = st.selectbox("Professor", PROFESSORES)
-
-    conteudo_monitoria = st.text_area("Conteúdo")
-    observacoes_monitoria = st.text_area("Observações")
-
-    salvar_monitoria = st.form_submit_button("Salvar")
-
-    if salvar_monitoria:
-        if not conteudo_monitoria.strip():
-            st.error("O campo conteúdo é obrigatório.")
-        else:
-            inserir_monitoria(
-                data_monitoria,
-                turma_monitoria,
-                professor_monitoria,
-                conteudo_monitoria.strip(),
-                observacoes_monitoria.strip(),
+        with col2:
+            tipo_av = st.selectbox(
+                "Tipo de atividade",
+                ["Prova", "Trabalho", "Lista de exercícios", "Seminário", "Outro"]
             )
-            st.success("Monitoria registrada com sucesso.")
+            descricao_av = st.text_input("Descrição", placeholder="Ex.: Capítulos 3 e 4")
 
-=========================
+        enviar_av = st.form_submit_button("Salvar avaliação")
 
-TELA: CONSULTAR MONITORIAS
+        if enviar_av:
+            if turma_av.strip() == "":
+                st.error("Preencha a turma.")
+            else:
+                inserir_avaliacao(
+                    data_av.strftime("%Y-%m-%d"),
+                    turma_av.strip(),
+                    tipo_av.strip(),
+                    descricao_av.strip()
+                )
+                st.success("Avaliação cadastrada com sucesso.")
 
-=========================
 
-elif selecao == "Consultar monitorias": st.title("Consultar monitorias")
+# =========================
+# ABA 2 - CADASTRAR MONITORIA
+# =========================
+with aba2:
+    st.subheader("Cadastrar monitoria")
 
-col1, col2, col3 = st.columns(3)
+    with st.form("form_monitoria"):
+        col1, col2 = st.columns(2)
 
-with col1:
-    turmas_filtro = st.multiselect("Filtrar por turma", TURMAS)
-with col2:
-    professores_filtro = st.multiselect("Filtrar por professor", PROFESSORES)
-with col3:
-    meses_escolhidos = st.multiselect("Filtrar por mês", list(MESES.keys()))
+        with col1:
+            data_mon = st.date_input("Data", key="data_monitoria")
+            turma_mon = st.text_input("Turma", placeholder="Ex.: 8º Ano B", key="turma_monitoria")
 
-meses_numeros = [MESES[mes] for mes in meses_escolhidos]
+        with col2:
+            conteudo_mon = st.text_area("Conteúdo", placeholder="Ex.: Revisão de frações")
+            observacao_mon = st.text_area("Observação", placeholder="Ex.: Turma participou bem")
 
-df_monitorias = consultar_monitorias(
-    turmas=turmas_filtro,
-    professores=professores_filtro,
-    meses=meses_numeros,
-)
+        enviar_mon = st.form_submit_button("Salvar monitoria")
 
-if df_monitorias.empty:
-    st.info("Nenhuma monitoria encontrada para os filtros selecionados.")
-else:
-    for _, linha in df_monitorias.iterrows():
-        exibir_bloco_monitoria(linha)
+        if enviar_mon:
+            if turma_mon.strip() == "" or conteudo_mon.strip() == "":
+                st.error("Preencha pelo menos a turma e o conteúdo.")
+            else:
+                inserir_monitoria(
+                    data_mon.strftime("%Y-%m-%d"),
+                    turma_mon.strip(),
+                    conteudo_mon.strip(),
+                    observacao_mon.strip()
+                )
+                st.success("Monitoria cadastrada com sucesso.")
+
+
+# =========================
+# ABA 3 - CONSULTAR
+# =========================
+with aba3:
+    st.subheader("Consultar registros")
+
+    df_av = carregar_avaliacoes()
+    df_mon = carregar_monitorias()
+
+    df_av = adicionar_coluna_mes(df_av)
+    df_mon = adicionar_coluna_mes(df_mon)
+
+    turmas_av = sorted(df_av["turma"].dropna().unique().tolist()) if not df_av.empty else []
+    turmas_mon = sorted(df_mon["turma"].dropna().unique().tolist()) if not df_mon.empty else []
+    turmas_unicas = sorted(list(set(turmas_av + turmas_mon)))
+
+    colf1, colf2 = st.columns(2)
+
+    with colf1:
+        mes_escolhido = st.selectbox(
+            "Filtrar por mês",
+            ["Todos", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            format_func=lambda x: (
+                "Todos" if x == "Todos" else
+                {
+                    1: "Janeiro",
+                    2: "Fevereiro",
+                    3: "Março",
+                    4: "Abril",
+                    5: "Maio",
+                    6: "Junho",
+                    7: "Julho",
+                    8: "Agosto",
+                    9: "Setembro",
+                    10: "Outubro",
+                    11: "Novembro",
+                    12: "Dezembro"
+                }[x]
+            )
+        )
+
+    with colf2:
+        turma_escolhida = st.selectbox(
+            "Filtrar por turma",
+            ["Todas"] + turmas_unicas
+        )
+
+    if st.button("Consultar"):
+        # FILTRO AVALIAÇÕES
+        av_filtrado = filtrar_por_mes(df_av, mes_escolhido)
+        av_filtrado = filtrar_por_turma(av_filtrado, turma_escolhida)
+
+        # FILTRO MONITORIAS
+        mon_filtrado = filtrar_por_mes(df_mon, mes_escolhido)
+        mon_filtrado = filtrar_por_turma(mon_filtrado, turma_escolhida)
+
+        st.markdown("---")
+        st.subheader("Atividades avaliativas")
+
+        if av_filtrado.empty:
+            st.info("Nenhuma atividade avaliativa encontrada.")
+        else:
+            av_filtrado = av_filtrado.sort_values(by="data_dt", ascending=True)
+
+            tabela_av = av_filtrado[["data", "tipo_atividade", "turma"]].copy()
+            tabela_av["data"] = tabela_av["data"].apply(formatar_data_br)
+            tabela_av.columns = ["Data", "Tipo de atividade", "Turma"]
+
+            st.dataframe(tabela_av, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.subheader("Monitorias")
+
+        if mon_filtrado.empty:
+            st.info("Nenhuma monitoria encontrada.")
+        else:
+            mon_filtrado = mon_filtrado.sort_values(by="data_dt", ascending=False)
+
+            for _, linha in mon_filtrado.iterrows():
+                data_br = formatar_data_br(linha["data"])
+                turma = linha["turma"]
+                conteudo = linha["conteudo"]
+                observacao = linha["observacao"] if pd.notna(linha["observacao"]) else ""
+
+                st.markdown(
+                    f"""
+                    **Dia:** {data_br}  
+                    **Turma:** {turma}  
+                    **Conteúdo:** {conteudo}  
+                    **Observação:** {observacao if observacao.strip() else "-"}
+                    """
+                )
+                st.markdown("---")
