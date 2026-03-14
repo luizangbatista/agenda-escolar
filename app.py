@@ -448,8 +448,7 @@ elif st.session_state.tela == "consultar":
             )
 
     # MONITORIAS
-if tipo_consulta in ["Tudo", "Monitorias"]:
-    st.markdown("### Monitorias")
+    if "tipo_consulta" in locals() and tipo_consulta in ["Tudo", "Monitorias"]:
 
     df_mon = buscar_monitorias()
 
