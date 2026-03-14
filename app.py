@@ -465,13 +465,13 @@ elif st.session_state.tela == "consultar":
             if df_mon.empty:
             st.info("Nenhuma monitoria encontrada com esses filtros.")
             else:
-            for _, linha in df_mon.iterrows():
+                for _, linha in df_mon.iterrows():
                 st.markdown(f"**{linha['data']} — {linha['turma']}**")
                 st.write(f"**Monitor:** {linha['monitor']}")
                 st.write(f"**Conteúdo:** {linha['conteudo']}")
 
                 arquivo = (linha["arquivo_drive"] or "").strip()
-                if arquivo:
+                    if arquivo:
                     st.write(f"**Arquivo no Drive:** {arquivo}")
 
                 st.markdown("---")
