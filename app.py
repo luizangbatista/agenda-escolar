@@ -454,12 +454,15 @@ elif st.session_state.tela == "consultar":
         df_mon = buscar_monitorias()
 
         if not df_mon.empty:
-            if filtro_turma != "Todas":
-                df_mon = df_mon[df_mon["turma"] == filtro_turma]
-            if filtro_monitor != "Todos":
-            df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
-            df_mon = filtrar_por_mes(df_mon, filtro_mes)
-            df_mon = df_mon.sort_values("data_obj", ascending=False)
+
+    if filtro_turma != "Todas":
+        df_mon = df_mon[df_mon["turma"] == filtro_turma]
+
+    if filtro_monitor != "Todos":
+        df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
+
+    df_mon = filtrar_por_mes(df_mon, filtro_mes)
+    df_mon = df_mon.sort_values("data_obj", ascending=False)
 
         if df_mon.empty:
             st.info("Nenhuma monitoria encontrada com esses filtros.")
