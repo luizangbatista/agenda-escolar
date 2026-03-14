@@ -450,7 +450,7 @@ elif st.session_state.tela == "consultar":
     # MONITORIAS
     if "tipo_consulta" in locals() and tipo_consulta in ["Tudo", "Monitorias"]:
 
-    df_mon = buscar_monitorias()
+        df_mon = buscar_monitorias()
 
         if not df_mon.empty:
             if filtro_turma != "Todas":
