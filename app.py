@@ -466,9 +466,9 @@ elif st.session_state.tela == "consultar":
                 st.info("Nenhuma monitoria encontrada com esses filtros.")
             else:
                 for _, linha in df_mon.iterrows():
-                st.markdown(f"**{linha['data']} — {linha['turma']}**")
-                st.write(f"**Monitor:** {linha['monitor']}")
-                st.write(f"**Conteúdo:** {linha['conteudo']}")
+                    st.markdown(f"**{linha['data']} — {linha['turma']}**")
+                    st.write(f"**Monitor:** {linha['monitor']}")
+                    st.write(f"**Conteúdo:** {linha['conteudo']}")
 
                 arquivo = (linha["arquivo_drive"] or "").strip()
                     if arquivo:
