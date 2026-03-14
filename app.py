@@ -1,5 +1,6 @@
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
+
 import pandas as pd
 import streamlit as st
 
@@ -10,290 +11,461 @@ import streamlit as st
 st.set_page_config(
     page_title="Agenda Escolar",
     page_icon="📚",
-    layout="wide"
+    layout="centered",
 )
+
+# =========================
+# LISTAS FIXAS DO APP
+# =========================
+TURMAS = [
+    "8º ano",
+    "7º ano",
+    "6º ano A",
+    "6º ano B",
+    "1ª série EM",
+    "2ª série EM",
+]
+
+TIPOS_AVALIACAO = [
+    "Testinho",
+    "Mensal",
+    "Trimestral",
+    "Suplementar",
+]
+
+MONITORES = [
+    "Luiza",
+    "Rafael",
+    "Arthur",
+    "Gabriel",
+]
+
+MESES = {
+    "Todos": 0,
+    "Janeiro": 1,
+    "Fevereiro": 2,
+    "Março": 3,
+    "Abril": 4,
+    "Maio": 5,
+    "Junho": 6,
+    "Julho": 7,
+    "Agosto": 8,
+    "Setembro": 9,
+    "Outubro": 10,
+    "Novembro": 11,
+    "Dezembro": 12,
+}
+
+DB_NAME = "agenda.db"
 
 
 # =========================
 # BANCO DE DADOS
 # =========================
-DB_NAME = "agenda_escolar.db"
-
-
-def conectar():
+def get_connection():
     return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 
-def criar_tabelas():
-    conn = conectar()
-    cursor = conn.cursor()
+def init_db():
+    conn = get_connection()
+    cur = conn.cursor()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS avaliacoes (
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS atividades_avaliativas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data TEXT NOT NULL,
-            turma TEXT NOT NULL,
             tipo_atividade TEXT NOT NULL,
-            descricao TEXT
+            turma TEXT NOT NULL
         )
     """)
 
-    cursor.execute("""
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS monitorias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data TEXT NOT NULL,
             turma TEXT NOT NULL,
+            monitor TEXT,
             conteudo TEXT NOT NULL,
-            observacao TEXT
+            arquivo_drive TEXT
         )
     """)
 
+    # Migrações simples para bancos antigos
+    colunas_monitorias = [col[1] for col in cur.execute("PRAGMA table_info(monitorias)").fetchall()]
+
+    if "monitor" not in colunas_monitorias:
+        cur.execute("ALTER TABLE monitorias ADD COLUMN monitor TEXT")
+
+    if "arquivo_drive" not in colunas_monitorias:
+        cur.execute("ALTER TABLE monitorias ADD COLUMN arquivo_drive TEXT")
+
     conn.commit()
     conn.close()
-
-
-def inserir_avaliacao(data, turma, tipo_atividade, descricao):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO avaliacoes (data, turma, tipo_atividade, descricao)
-        VALUES (?, ?, ?, ?)
-    """, (data, turma, tipo_atividade, descricao))
-    conn.commit()
-    conn.close()
-
-
-def inserir_monitoria(data, turma, conteudo, observacao):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO monitorias (data, turma, conteudo, observacao)
-        VALUES (?, ?, ?, ?)
-    """, (data, turma, conteudo, observacao))
-    conn.commit()
-    conn.close()
-
-
-def carregar_avaliacoes():
-    conn = conectar()
-    df = pd.read_sql_query("SELECT * FROM avaliacoes", conn)
-    conn.close()
-    return df
-
-
-def carregar_monitorias():
-    conn = conectar()
-    df = pd.read_sql_query("SELECT * FROM monitorias", conn)
-    conn.close()
-    return df
 
 
 # =========================
 # FUNÇÕES AUXILIARES
 # =========================
-def formatar_data_br(data_str):
-    try:
-        return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
-    except Exception:
-        return data_str
+def data_para_texto(data_obj):
+    return data_obj.strftime("%d/%m/%Y")
 
 
-def adicionar_coluna_mes(df):
-    if not df.empty and "data" in df.columns:
-        df["data_dt"] = pd.to_datetime(df["data"], errors="coerce")
-        df["mes"] = df["data_dt"].dt.month
-        df["ano"] = df["data_dt"].dt.year
+def texto_para_data(data_texto):
+    return datetime.strptime(data_texto, "%d/%m/%Y")
+
+
+def normalizar_turma(valor):
+    mapa = {
+        "8o": "8º ano",
+        "8º": "8º ano",
+        "8 ano": "8º ano",
+        "7o": "7º ano",
+        "7º": "7º ano",
+        "7 ano": "7º ano",
+        "6A": "6º ano A",
+        "6º A": "6º ano A",
+        "6 ano A": "6º ano A",
+        "6B": "6º ano B",
+        "6º B": "6º ano B",
+        "6 ano B": "6º ano B",
+        "1ª série": "1ª série EM",
+        "1EM": "1ª série EM",
+        "1º EM": "1ª série EM",
+        "2ª série": "2ª série EM",
+        "2EM": "2ª série EM",
+        "2º EM": "2ª série EM",
+    }
+    return mapa.get(valor, valor)
+
+
+def corrigir_dados_antigos():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # Atividades
+    linhas = cur.execute("SELECT id, turma FROM atividades_avaliativas").fetchall()
+    for linha_id, turma in linhas:
+        turma_corrigida = normalizar_turma(turma)
+        if turma_corrigida != turma:
+            cur.execute(
+                "UPDATE atividades_avaliativas SET turma = ? WHERE id = ?",
+                (turma_corrigida, linha_id),
+            )
+
+    # Monitorias
+    linhas = cur.execute("SELECT id, turma FROM monitorias").fetchall()
+    for linha_id, turma in linhas:
+        turma_corrigida = normalizar_turma(turma)
+        if turma_corrigida != turma:
+            cur.execute(
+                "UPDATE monitorias SET turma = ? WHERE id = ?",
+                (turma_corrigida, linha_id),
+            )
+
+    conn.commit()
+    conn.close()
+
+
+def inserir_atividade(data_atividade, tipo_atividade, turma):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO atividades_avaliativas (data, tipo_atividade, turma)
+        VALUES (?, ?, ?)
+    """, (data_para_texto(data_atividade), tipo_atividade, turma))
+    conn.commit()
+    conn.close()
+
+
+def inserir_monitoria(data_monitoria, turma, monitor, conteudo, arquivo_drive):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO monitorias (data, turma, monitor, conteudo, arquivo_drive)
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        data_para_texto(data_monitoria),
+        turma,
+        monitor,
+        conteudo.strip(),
+        arquivo_drive.strip(),
+    ))
+    conn.commit()
+    conn.close()
+
+
+def buscar_atividades():
+    conn = get_connection()
+    query = "SELECT id, data, tipo_atividade, turma FROM atividades_avaliativas"
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+    if not df.empty:
+        df["data_obj"] = df["data"].apply(texto_para_data)
     return df
 
 
-def filtrar_por_mes(df, mes):
-    if df.empty:
-        return df
-    if mes == "Todos":
-        return df
-    return df[df["mes"] == int(mes)]
+def buscar_monitorias():
+    conn = get_connection()
+    query = "SELECT id, data, turma, monitor, conteudo, arquivo_drive FROM monitorias"
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+    if not df.empty:
+        df["data_obj"] = df["data"].apply(texto_para_data)
+    return df
 
 
-def filtrar_por_turma(df, turma):
+def filtrar_por_mes(df, nome_mes):
+    if df.empty or nome_mes == "Todos":
+        return df
+    numero_mes = MESES[nome_mes]
+    return df[df["data_obj"].dt.month == numero_mes]
+
+
+def formatar_dataframe_atividades(df):
     if df.empty:
         return df
-    if turma == "Todas":
-        return df
-    return df[df["turma"] == turma]
+
+    df = df.copy()
+    df = df.sort_values("data_obj", ascending=False)
+    return df[["data", "tipo_atividade", "turma"]].rename(
+        columns={
+            "data": "Data",
+            "tipo_atividade": "Tipo de atividade",
+            "turma": "Turma",
+        }
+    )
+
+
+# =========================
+# ESTADO DA TELA
+# =========================
+if "tela" not in st.session_state:
+    st.session_state.tela = "menu"
+
+if "mensagem" not in st.session_state:
+    st.session_state.mensagem = ""
 
 
 # =========================
 # INICIALIZAÇÃO
 # =========================
-criar_tabelas()
+init_db()
+corrigir_dados_antigos()
 
+
+# =========================
+# CABEÇALHO
+# =========================
 st.title("📚 Agenda Escolar")
-st.caption("Cadastro e consulta de avaliações e monitorias")
+
+if st.session_state.mensagem:
+    st.success(st.session_state.mensagem)
+    st.session_state.mensagem = ""
 
 
 # =========================
-# ABAS PRINCIPAIS
+# MENU PRINCIPAL
 # =========================
-aba1, aba2, aba3 = st.tabs(["Cadastrar Avaliação", "Cadastrar Monitoria", "Consultar"])
+if st.session_state.tela == "menu":
+    st.subheader("Menu principal")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("Cadastrar atividade", use_container_width=True):
+            st.session_state.tela = "cad_atividade"
+            st.rerun()
+
+    with col2:
+        if st.button("Cadastrar monitoria", use_container_width=True):
+            st.session_state.tela = "cad_monitoria"
+            st.rerun()
+
+    with col3:
+        if st.button("Consultar", use_container_width=True):
+            st.session_state.tela = "consultar"
+            st.rerun()
 
 
 # =========================
-# ABA 1 - CADASTRAR AVALIAÇÃO
+# CADASTRO DE ATIVIDADE
 # =========================
-with aba1:
+elif st.session_state.tela == "cad_atividade":
     st.subheader("Cadastrar atividade avaliativa")
 
-    with st.form("form_avaliacao"):
+    with st.form("form_atividade"):
+        data_atividade = st.date_input("Data", value=date.today())
+
+        turma = st.selectbox(
+            "Turma",
+            TURMAS,
+            index=None,
+            placeholder="Selecione a turma",
+        )
+
+        tipo_atividade = st.selectbox(
+            "Tipo de atividade avaliativa",
+            TIPOS_AVALIACAO,
+            index=None,
+            placeholder="Selecione o tipo",
+        )
+
         col1, col2 = st.columns(2)
+        salvar = col1.form_submit_button("Salvar", use_container_width=True)
+        voltar = col2.form_submit_button("Voltar ao menu", use_container_width=True)
 
-        with col1:
-            data_av = st.date_input("Data")
-            turma_av = st.text_input("Turma", placeholder="Ex.: 7º Ano A")
+    if voltar:
+        st.session_state.tela = "menu"
+        st.rerun()
 
-        with col2:
-            tipo_av = st.selectbox(
-                "Tipo de atividade",
-                ["Prova", "Trabalho", "Lista de exercícios", "Seminário", "Outro"]
+    if salvar:
+        if not turma or not tipo_atividade:
+            st.error("Preencha todos os campos.")
+        else:
+            inserir_atividade(
+                data_atividade=data_atividade,
+                tipo_atividade=tipo_atividade,
+                turma=turma,
             )
-            descricao_av = st.text_input("Descrição", placeholder="Ex.: Capítulos 3 e 4")
-
-        enviar_av = st.form_submit_button("Salvar avaliação")
-
-        if enviar_av:
-            if turma_av.strip() == "":
-                st.error("Preencha a turma.")
-            else:
-                inserir_avaliacao(
-                    data_av.strftime("%Y-%m-%d"),
-                    turma_av.strip(),
-                    tipo_av.strip(),
-                    descricao_av.strip()
-                )
-                st.success("Avaliação cadastrada com sucesso.")
+            st.session_state.mensagem = "Atividade cadastrada com sucesso."
+            st.session_state.tela = "menu"
+            st.rerun()
 
 
 # =========================
-# ABA 2 - CADASTRAR MONITORIA
+# CADASTRO DE MONITORIA
 # =========================
-with aba2:
+elif st.session_state.tela == "cad_monitoria":
     st.subheader("Cadastrar monitoria")
 
     with st.form("form_monitoria"):
+        data_monitoria = st.date_input("Data", value=date.today(), key="data_monitoria")
+
+        turma = st.selectbox(
+            "Turma",
+            TURMAS,
+            index=None,
+            placeholder="Selecione a turma",
+            key="turma_monitoria",
+        )
+
+        monitor = st.selectbox(
+            "Monitor",
+            MONITORES,
+            index=None,
+            placeholder="Selecione o monitor",
+        )
+
+        conteudo = st.text_area("Conteúdo")
+
+        arquivo_drive = st.text_input("Nome do arquivo no Drive (se houver)")
+
         col1, col2 = st.columns(2)
+        salvar = col1.form_submit_button("Salvar", use_container_width=True)
+        voltar = col2.form_submit_button("Voltar ao menu", use_container_width=True)
 
-        with col1:
-            data_mon = st.date_input("Data", key="data_monitoria")
-            turma_mon = st.text_input("Turma", placeholder="Ex.: 8º Ano B", key="turma_monitoria")
+    if voltar:
+        st.session_state.tela = "menu"
+        st.rerun()
 
-        with col2:
-            conteudo_mon = st.text_area("Conteúdo", placeholder="Ex.: Revisão de frações")
-            observacao_mon = st.text_area("Observação", placeholder="Ex.: Turma participou bem")
-
-        enviar_mon = st.form_submit_button("Salvar monitoria")
-
-        if enviar_mon:
-            if turma_mon.strip() == "" or conteudo_mon.strip() == "":
-                st.error("Preencha pelo menos a turma e o conteúdo.")
-            else:
-                inserir_monitoria(
-                    data_mon.strftime("%Y-%m-%d"),
-                    turma_mon.strip(),
-                    conteudo_mon.strip(),
-                    observacao_mon.strip()
-                )
-                st.success("Monitoria cadastrada com sucesso.")
+    if salvar:
+        if not turma or not monitor or not conteudo.strip():
+            st.error("Preencha data, turma, monitor e conteúdo.")
+        else:
+            inserir_monitoria(
+                data_monitoria=data_monitoria,
+                turma=turma,
+                monitor=monitor,
+                conteudo=conteudo,
+                arquivo_drive=arquivo_drive,
+            )
+            st.session_state.mensagem = "Monitoria cadastrada com sucesso."
+            st.session_state.tela = "menu"
+            st.rerun()
 
 
 # =========================
-# ABA 3 - CONSULTAR
+# CONSULTA
 # =========================
-with aba3:
+elif st.session_state.tela == "consultar":
     st.subheader("Consultar registros")
 
-    df_av = carregar_avaliacoes()
-    df_mon = carregar_monitorias()
+    with st.container():
+        col1, col2, col3 = st.columns(3)
 
-    df_av = adicionar_coluna_mes(df_av)
-    df_mon = adicionar_coluna_mes(df_mon)
-
-    turmas_av = sorted(df_av["turma"].dropna().unique().tolist()) if not df_av.empty else []
-    turmas_mon = sorted(df_mon["turma"].dropna().unique().tolist()) if not df_mon.empty else []
-    turmas_unicas = sorted(list(set(turmas_av + turmas_mon)))
-
-    colf1, colf2 = st.columns(2)
-
-    with colf1:
-        mes_escolhido = st.selectbox(
-            "Filtrar por mês",
-            ["Todos", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-            format_func=lambda x: (
-                "Todos" if x == "Todos" else
-                {
-                    1: "Janeiro",
-                    2: "Fevereiro",
-                    3: "Março",
-                    4: "Abril",
-                    5: "Maio",
-                    6: "Junho",
-                    7: "Julho",
-                    8: "Agosto",
-                    9: "Setembro",
-                    10: "Outubro",
-                    11: "Novembro",
-                    12: "Dezembro"
-                }[x]
+        with col1:
+            filtro_turma = st.selectbox(
+                "Turma",
+                ["Todas"] + TURMAS,
+                index=0,
             )
-        )
 
-    with colf2:
-        turma_escolhida = st.selectbox(
-            "Filtrar por turma",
-            ["Todas"] + turmas_unicas
-        )
+        with col2:
+            filtro_mes = st.selectbox(
+                "Mês",
+                list(MESES.keys()),
+                index=0,
+            )
 
-    if st.button("Consultar"):
-        # FILTRO AVALIAÇÕES
-        av_filtrado = filtrar_por_mes(df_av, mes_escolhido)
-        av_filtrado = filtrar_por_turma(av_filtrado, turma_escolhida)
+        with col3:
+            tipo_consulta = st.selectbox(
+                "Seção",
+                ["Tudo", "Atividades avaliativas", "Monitorias"],
+                index=0,
+            )
 
-        # FILTRO MONITORIAS
-        mon_filtrado = filtrar_por_mes(df_mon, mes_escolhido)
-        mon_filtrado = filtrar_por_turma(mon_filtrado, turma_escolhida)
+    st.markdown("---")
 
-        st.markdown("---")
-        st.subheader("Atividades avaliativas")
+    # ATIVIDADES
+    if tipo_consulta in ["Tudo", "Atividades avaliativas"]:
+        st.markdown("### Atividades avaliativas")
 
-        if av_filtrado.empty:
-            st.info("Nenhuma atividade avaliativa encontrada.")
+        df_ativ = buscar_atividades()
+
+        if not df_ativ.empty:
+            if filtro_turma != "Todas":
+                df_ativ = df_ativ[df_ativ["turma"] == filtro_turma]
+
+            df_ativ = filtrar_por_mes(df_ativ, filtro_mes)
+
+        if df_ativ.empty:
+            st.info("Nenhuma atividade avaliativa encontrada com esses filtros.")
         else:
-            av_filtrado = av_filtrado.sort_values(by="data_dt", ascending=True)
+            st.dataframe(
+                formatar_dataframe_atividades(df_ativ),
+                use_container_width=True,
+                hide_index=True,
+            )
 
-            tabela_av = av_filtrado[["data", "tipo_atividade", "turma"]].copy()
-            tabela_av["data"] = tabela_av["data"].apply(formatar_data_br)
-            tabela_av.columns = ["Data", "Tipo de atividade", "Turma"]
+    # MONITORIAS
+    if tipo_consulta in ["Tudo", "Monitorias"]:
+        st.markdown("### Monitorias")
 
-            st.dataframe(tabela_av, use_container_width=True, hide_index=True)
+        df_mon = buscar_monitorias()
 
-        st.markdown("---")
-        st.subheader("Monitorias")
+        if not df_mon.empty:
+            if filtro_turma != "Todas":
+                df_mon = df_mon[df_mon["turma"] == filtro_turma]
 
-        if mon_filtrado.empty:
-            st.info("Nenhuma monitoria encontrada.")
+            df_mon = filtrar_por_mes(df_mon, filtro_mes)
+            df_mon = df_mon.sort_values("data_obj", ascending=False)
+
+        if df_mon.empty:
+            st.info("Nenhuma monitoria encontrada com esses filtros.")
         else:
-            mon_filtrado = mon_filtrado.sort_values(by="data_dt", ascending=False)
+            for _, linha in df_mon.iterrows():
+                st.markdown(f"**{linha['data']} — {linha['turma']}**")
+                st.write(f"**Monitor:** {linha['monitor']}")
+                st.write(f"**Conteúdo:** {linha['conteudo']}")
 
-            for _, linha in mon_filtrado.iterrows():
-                data_br = formatar_data_br(linha["data"])
-                turma = linha["turma"]
-                conteudo = linha["conteudo"]
-                observacao = linha["observacao"] if pd.notna(linha["observacao"]) else ""
+                arquivo = (linha["arquivo_drive"] or "").strip()
+                if arquivo:
+                    st.write(f"**Arquivo no Drive:** {arquivo}")
 
-                st.markdown(
-                    f"""
-                    **Dia:** {data_br}  
-                    **Turma:** {turma}  
-                    **Conteúdo:** {conteudo}  
-                    **Observação:** {observacao if observacao.strip() else "-"}
-                    """
-                )
                 st.markdown("---")
+
+    if st.button("Voltar ao menu", use_container_width=True):
+        st.session_state.tela = "menu"
+        st.rerun()
