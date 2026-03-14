@@ -9,7 +9,7 @@ import streamlit as st
 # CONFIGURAÇÃO DA PÁGINA
 # =========================
 st.set_page_config(
-    page_title="Agenda Escolar",
+    page_title="SisteMat CEFAE",
     page_icon="📚",
     layout="centered",
 )
