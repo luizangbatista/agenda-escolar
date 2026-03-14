@@ -464,19 +464,19 @@ if not df_mon.empty:
     df_mon = filtrar_por_mes(df_mon, filtro_mes)
     df_mon = df_mon.sort_values("data_obj", ascending=False)
 
-        if df_mon.empty:
-            st.info("Nenhuma monitoria encontrada com esses filtros.")
-        else:
-            for _, linha in df_mon.iterrows():
-                st.markdown(f"**{linha['data']} — {linha['turma']}**")
-                st.write(f"**Monitor:** {linha['monitor']}")
-                st.write(f"**Conteúdo:** {linha['conteudo']}")
+if df_mon.empty:
+    st.info("Nenhuma monitoria encontrada com esses filtros.")
+else:
+    for _, linha in df_mon.iterrows():
+        st.markdown(f"**{linha['data']} — {linha['turma']}**")
+        st.write(f"**Monitor:** {linha['monitor']}")
+        st.write(f"**Conteúdo:** {linha['conteudo']}")
 
-                arquivo = (linha["arquivo_drive"] or "").strip()
-                if arquivo:
-                    st.write(f"**Arquivo no Drive:** {arquivo}")
+        arquivo = (linha["arquivo_drive"] or "").strip()
+        if arquivo:
+            st.write(f"**Arquivo no Drive:** {arquivo}")
 
-                st.markdown("---")
+        st.markdown("---")
 
     if st.button("Voltar ao menu", use_container_width=True):
         st.session_state.tela = "menu"
