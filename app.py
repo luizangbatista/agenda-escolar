@@ -493,4 +493,4 @@ if st.session_state.tela == "consultar":
         if arquivo:
             st.write(f"**Arquivo no Drive:** {arquivo}")
 
-                st.markdown("---")
+            st.markdown("---")
