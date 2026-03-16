@@ -489,8 +489,8 @@ if st.session_state.tela == "consultar":
         st.session_state.tela = "menu"
         st.rerun()
                 
-                arquivo = (linha["arquivo_drive"] or "").strip()
-                if arquivo:
-                    st.write(f"**Arquivo no Drive:** {arquivo}")
+        arquivo = (linha["arquivo_drive"] or "").strip()
+        if arquivo:
+            st.write(f"**Arquivo no Drive:** {arquivo}")
 
                 st.markdown("---")
