@@ -475,22 +475,32 @@ if st.session_state.tela == "consultar":
 
     st.title("Consultas")
 
-    for _, linha in df_mon.iterrows():
+    for i, linha in df_mon.iterrows():
 
         st.markdown(f"**{linha['data']} — {linha['turma']}**")
-        st.write(f"Monitor: {linha['monitor']}")
-        st.write(f"Conteúdo: {linha['conteudo']}")
+        st.write(f"**Monitor:** {linha['monitor']}")
+        st.write(f"**Conteúdo:** {linha['conteudo']}")
 
-        st.divider()
-
-
-    # BOTÃO VOLTAR (COLOCAR AQUI)
-    if st.button("⬅️ Voltar ao menu"):
-        st.session_state.tela = "menu"
-        st.rerun()
-                
         arquivo = (linha["arquivo_drive"] or "").strip()
         if arquivo:
             st.write(f"**Arquivo no Drive:** {arquivo}")
 
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("✏️ Editar", key=f"editar_mon_{i}"):
+                st.session_state.registro_editar_mon = linha.to_dict()
+                st.session_state.tela = "editar_monitoria"
+                st.rerun()
+
+        with col2:
+            if st.button("🗑️ Excluir", key=f"excluir_mon_{i}"):
+                remover_monitoria(linha)
+
+        st.divider()    
+    
+    # BOTÃO VOLTAR (COLOCAR AQUI)
+    if st.button("⬅️ Voltar ao menu"):
+        st.session_state.tela = "menu"
+        st.rerun()
             st.markdown("---")
