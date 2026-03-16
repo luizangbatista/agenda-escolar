@@ -469,7 +469,9 @@ elif st.session_state.tela == "consultar":
                     st.markdown(f"**{linha['data']} — {linha['turma']}**")
                     st.write(f"**Monitor:** {linha['monitor']}")
                     st.write(f"**Conteúdo:** {linha['conteudo']}")
-
+                    
+                    st.divider()
+                    
                 arquivo = (linha["arquivo_drive"] or "").strip()
                 if arquivo:
                     st.write(f"**Arquivo no Drive:** {arquivo}")
