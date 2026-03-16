@@ -503,4 +503,4 @@ if st.session_state.tela == "consultar":
     if st.button("⬅️ Voltar ao menu"):
         st.session_state.tela = "menu"
         st.rerun()
-            st.markdown("---")
+        st.markdown("---")
