@@ -469,55 +469,9 @@ elif st.session_state.tela == "consultar":
                     st.markdown(f"**{linha['data']} — {linha['turma']}**")
                     st.write(f"**Monitor:** {linha['monitor']}")
                     st.write(f"**Conteúdo:** {linha['conteudo']}")
-                    
-                    st.divider()
-if st.session_state.tela == "consultar":
 
-    st.title("Consultas")
+                arquivo = (linha["arquivo_drive"] or "").strip()
+                if arquivo:
+                    st.write(f"**Arquivo no Drive:** {arquivo}")
 
-    for i, linha in df_mon.iterrows():
-
-        st.markdown(f"**{linha['data']} — {linha['turma']}**")
-        st.write(f"**Monitor:** {linha['monitor']}")
-        st.write(f"**Conteúdo:** {linha['conteudo']}")
-
-        arquivo = (linha["arquivo_drive"] or "").strip()
-        if arquivo:
-            st.write(f"**Arquivo no Drive:** {arquivo}")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("✏️ Editar", key=f"editar_mon_{i}"):
-                st.session_state.registro_editar_mon = linha.to_dict()
-                st.session_state.tela = "editar_monitoria"
-                st.rerun()
-                    if st.session_state.tela == "editar_monitoria":
-                    st.title("Editar monitoria")
-                
-                    registro = st.session_state.get("registro_editar_mon", {})
-                
-                    data = st.text_input("Data", value=registro.get("data", ""))
-                    monitor = st.text_input("Monitor", value=registro.get("monitor", ""))
-                    turma = st.text_input("Turma", value=registro.get("turma", ""))
-                    conteudo = st.text_area("Conteúdo", value=registro.get("conteudo", ""))
-                    arquivo_drive = st.text_input("Arquivo no Drive", value=registro.get("arquivo_drive", ""))
-                
-                    if st.button("Salvar alterações"):
-                        st.success("Tela de edição abriu corretamente")
-                
-                    if st.button("Cancelar"):
-                        st.session_state.tela = "consultar"
-                    st.rerun()
-
-        with col2:
-            if st.button("🗑️ Excluir", key=f"excluir_mon_{i}"):
-                remover_monitoria(linha)
-
-        st.divider()    
-    
-    # BOTÃO VOLTAR (COLOCAR AQUI)
-    if st.button("⬅️ Voltar ao menu"):
-        st.session_state.tela = "menu"
-        st.rerun()
-        st.markdown("---")
+                st.markdown("---")
