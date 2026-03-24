@@ -360,13 +360,14 @@ elif st.session_state.tela == "cons":
         st.info("Nenhuma monitoria encontrada.")
     else:
         for _, linha in df_mon.iterrows():
-            topo1, topo2 = st.columns([9, 1])
+            col1, col2 = st.columns([10, 1], gap="small")
 
-            topo1.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
+col1.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
 
-            if topo2.button("🗑️", key=f"del_m_{linha['id']}"):
-                deletar_monitoria(linha["id"])
-                st.rerun()
+with col2:
+    if st.button("🗑️", key=f"del_m_{linha['id']}", use_container_width=True):
+        deletar_monitoria(linha["id"])
+        st.rerun()
 
             st.markdown(f"CONTEÚDO: {linha['conteudo']}")
 
