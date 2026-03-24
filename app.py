@@ -6,21 +6,37 @@ import streamlit as st
 st.set_page_config(page_title="SisteMat", page_icon="📚", layout="centered")
 
 # =========================
-# CSS (BOTÕES + ESPAÇO)
+# CSS ULTRA CLEAN
 # =========================
 st.markdown("""
 <style>
+
+/* botão sem fundo */
 div.stButton > button {
-    padding: 0.2rem 0.4rem;
-    font-size: 14px;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 18px;
 }
+
+/* remove hover feio */
+div.stButton > button:hover {
+    background: none;
+    transform: scale(1.1);
+}
+
+/* reduz espaço geral */
 .block-container {
     padding-top: 2rem;
     padding-bottom: 1rem;
 }
+
+/* linha divisória mais suave */
 hr {
-    margin: 8px 0;
+    margin: 6px 0;
+    opacity: 0.3;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -112,7 +128,7 @@ if st.session_state.tela=="menu":
         st.session_state.tela="cons";st.rerun()
 
 # =========================
-# CADASTRO ATIVIDADE
+# CADASTROS
 # =========================
 elif st.session_state.tela=="cad_a":
 
@@ -130,9 +146,6 @@ elif st.session_state.tela=="cad_a":
         st.session_state.tela="menu"
         st.rerun()
 
-# =========================
-# CADASTRO MONITORIA
-# =========================
 elif st.session_state.tela=="cad_m":
 
     if st.button("⬅ Voltar"):
@@ -159,119 +172,41 @@ elif st.session_state.tela=="cons":
     if st.button("⬅ Voltar"):
         st.session_state.tela="menu";st.rerun()
 
-    # =========================
-    # FILTROS
-    # =========================
-    st.subheader("Filtros")
-
-    c1,c2,c3 = st.columns(3)
-
-    data_ini = c1.date_input("De", value=None)
-    data_fim = c2.date_input("Até", value=None)
-    filtro_turma = c3.selectbox("Turma", ["Todas"]+TURMAS)
-
-    filtro_monitor = st.selectbox("Monitor", ["Todos"]+MONITORES)
-
-    # =========================
-    # ATIVIDADES
-    # =========================
-    st.subheader("Atividades")
-
-    df = get_ativ()
-
-    if not df.empty:
-        if filtro_turma != "Todas":
-            df = df[df["turma"] == filtro_turma]
-
-        if data_ini:
-            df = df[df["data_obj"] >= pd.to_datetime(data_ini)]
-
-        if data_fim:
-            df = df[df["data_obj"] <= pd.to_datetime(data_fim)]
-
-    if df.empty:
-        st.info("Nenhuma atividade encontrada.")
-    else:
-        tabela = df[["data","turma","tipo_atividade"]]
-        tabela.columns = ["Data","Turma","Atividade"]
-        st.dataframe(tabela, use_container_width=True, hide_index=True)
-
-        if st.button("✏️ Alterar registros"):
-            st.session_state.modo_edicao = True
-            st.rerun()
-
-    # =========================
-    # MODO EDIÇÃO
-    # =========================
-    if st.session_state.modo_edicao:
-        st.markdown("### ✏️ Alterar registros")
-
-        if st.button("⬅ Voltar para consulta"):
-            st.session_state.modo_edicao = False
-            st.rerun()
-
-        for _, l in df.iterrows():
-            col1,col2,col3,col4 = st.columns([3,3,2,2])
-
-            col1.write(l["data"])
-            col2.write(l["turma"])
-            col3.write(l["tipo_atividade"])
-
-            if col4.button("✏️", key=f"editA{l['id']}"):
-                st.session_state.edit_id=l["id"]
-                st.session_state.edit_tipo="a"
-                st.session_state.tela="edit";st.rerun()
-
-            if col4.button("🗑️", key=f"delA{l['id']}"):
-                deletar_atividade(l["id"]);st.rerun()
-
-    st.markdown("---")
-
-    # =========================
-    # MONITORIAS
-    # =========================
     st.subheader("Monitorias")
 
     df = get_mon()
-
-    if not df.empty:
-        if filtro_turma != "Todas":
-            df = df[df["turma"] == filtro_turma]
-
-        if filtro_monitor != "Todos":
-            df = df[df["monitor"] == filtro_monitor]
-
-        if data_ini:
-            df = df[df["data_obj"] >= pd.to_datetime(data_ini)]
-
-        if data_fim:
-            df = df[df["data_obj"] <= pd.to_datetime(data_fim)]
 
     if df.empty:
         st.info("Nenhuma monitoria encontrada.")
     else:
         for _, l in df.iterrows():
 
-            col1, col2 = st.columns([8,2])
+            # LINHA PRINCIPAL COM BOTÕES
+            col1, col2 = st.columns([9,1])
 
             col1.markdown(f"**{l['data']} | {l['turma']} | {l['monitor']}**")
-            col1.markdown(f"CONTEÚDO: {l['conteudo']}")
 
-            if l["arquivo_drive"]:
-                col1.markdown(f"ARQUIVO: {l['arquivo_drive']}")
-
+            # BOTÕES NA MESMA LINHA DO TÍTULO
             with col2:
-                b1, b2 = st.columns(2)
+                cols = st.columns(2)
 
-                if b1.button("✏️", key=f"em{l['id']}"):
+                if cols[0].button("✏️", key=f"em{l['id']}", use_container_width=True):
                     st.session_state.edit_id=l["id"]
                     st.session_state.edit_tipo="m"
-                    st.session_state.tela="edit";st.rerun()
+                    st.session_state.tela="edit"
+                    st.rerun()
 
-                if b2.button("🗑️", key=f"dm{l['id']}"):
-                    deletar_monitoria(l["id"]);st.rerun()
+                if cols[1].button("🗑️", key=f"dm{l['id']}", use_container_width=True):
+                    deletar_monitoria(l["id"])
+                    st.rerun()
 
-            st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
+            # CONTEÚDO
+            st.markdown(f"CONTEÚDO: {l['conteudo']}")
+
+            if l["arquivo_drive"]:
+                st.markdown(f"ARQUIVO: {l['arquivo_drive']}")
+
+            st.markdown("<hr>", unsafe_allow_html=True)
 
 # =========================
 # EDIT
@@ -280,20 +215,6 @@ elif st.session_state.tela=="edit":
 
     if st.button("⬅ Voltar"):
         st.session_state.tela="cons";st.rerun()
-
-    if st.session_state.edit_tipo=="a":
-        df=get_ativ()
-        l=df[df["id"]==st.session_state.edit_id].iloc[0]
-
-        with st.form("editA"):
-            d=st.date_input("Data",value=l["data_obj"])
-            t=st.selectbox("Turma",TURMAS,index=TURMAS.index(l["turma"]))
-            tp=st.selectbox("Tipo",TIPOS_AVALIACAO,index=TIPOS_AVALIACAO.index(l["tipo_atividade"]))
-            ok=st.form_submit_button("Salvar")
-
-        if ok:
-            atualizar_atividade(l["id"],d,tp,t)
-            st.session_state.tela="cons";st.rerun()
 
     if st.session_state.edit_tipo=="m":
         df=get_mon()
