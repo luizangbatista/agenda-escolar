@@ -360,22 +360,24 @@ elif st.session_state.tela == "cons":
         st.info("Nenhuma monitoria encontrada.")
     else:
         for _, linha in df_mon.iterrows():
-            col1, col2 = st.columns([10, 1], gap="small")
 
-col1.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
+    col1, col2 = st.columns([10, 1], gap="small")
 
-with col2:
-    if st.button("🗑️", key=f"del_m_{linha['id']}", use_container_width=True):
-        deletar_monitoria(linha["id"])
-        st.rerun()
+    col1.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
 
-            st.markdown(f"CONTEÚDO: {linha['conteudo']}")
+    with col2:
+        if st.button("🗑️", key=f"del_m_{linha['id']}", use_container_width=True):
+            deletar_monitoria(linha["id"])
+            st.rerun()
 
-            arquivo = (linha["arquivo_drive"] or "").strip()
-            if arquivo:
-                st.markdown(f"ARQUIVO: {arquivo}")
+    # 👇 FORA DO with col2 (IMPORTANTE)
+    st.markdown(f"CONTEÚDO: {linha['conteudo']}")
 
-            st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
+    arquivo = (linha["arquivo_drive"] or "").strip()
+    if arquivo:
+        st.markdown(f"ARQUIVO: {arquivo}")
+
+    st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
 
 
 # =========================
