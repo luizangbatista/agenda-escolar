@@ -269,10 +269,6 @@ elif st.session_state.tela == "cons":
     data_ini = col1.date_input("Data inicial", value=None)
     data_fim = col2.date_input("Data final", value=None)
 
-    col3, col4 = st.columns(2)
-    filtro_turma = col3.selectbox("Turma", ["Todas"] + TURMAS)
-    filtro_monitor = col4.selectbox("Monitor", ["Todos"] + MONITORES)
-
     # =========================
     # ATIVIDADES
     # =========================
@@ -281,9 +277,6 @@ elif st.session_state.tela == "cons":
     df_ativ = buscar_atividades()
 
     if not df_ativ.empty:
-        if filtro_turma != "Todas":
-            df_ativ = df_ativ[df_ativ["turma"] == filtro_turma]
-
         if data_ini is not None:
             df_ativ = df_ativ[df_ativ["data_obj"] >= pd.to_datetime(data_ini)]
 
@@ -344,12 +337,6 @@ elif st.session_state.tela == "cons":
     df_mon = buscar_monitorias()
 
     if not df_mon.empty:
-        if filtro_turma != "Todas":
-            df_mon = df_mon[df_mon["turma"] == filtro_turma]
-
-        if filtro_monitor != "Todos":
-            df_mon = df_mon[df_mon["monitor"] == filtro_monitor]
-
         if data_ini is not None:
             df_mon = df_mon[df_mon["data_obj"] >= pd.to_datetime(data_ini)]
 
@@ -360,7 +347,6 @@ elif st.session_state.tela == "cons":
         st.info("Nenhuma monitoria encontrada.")
     else:
         for _, linha in df_mon.iterrows():
-
             col1, col2 = st.columns([10, 1], gap="small")
 
             col1.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
@@ -368,9 +354,8 @@ elif st.session_state.tela == "cons":
             with col2:
                 if st.button("🗑️", key=f"del_m_{linha['id']}", use_container_width=True):
                     deletar_monitoria(linha["id"])
-                st.rerun()
+                    st.rerun()
 
-    # 👇 FORA DO with col2 (IMPORTANTE)
             st.markdown(f"CONTEÚDO: {linha['conteudo']}")
 
             arquivo = (linha["arquivo_drive"] or "").strip()
