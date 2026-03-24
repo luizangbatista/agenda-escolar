@@ -5,12 +5,37 @@ import streamlit as st
 
 st.set_page_config(page_title="SisteMat", page_icon="📚", layout="centered")
 
+# =========================
+# CSS (BOTÕES + ESPAÇO)
+# =========================
+st.markdown("""
+<style>
+div.stButton > button {
+    padding: 0.2rem 0.4rem;
+    font-size: 14px;
+}
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 1rem;
+}
+hr {
+    margin: 8px 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
+# LISTAS
+# =========================
 TURMAS = ["6º ano A","6º ano B","7º ano","8º ano","9º ano","1ª série EM","2ª série EM"]
 TIPOS_AVALIACAO = ["Testinho","Mensal","Trimestral","Suplementar"]
 MONITORES = ["Luiza","Rafael","Arthur","Gabriel"]
 
 DB_NAME = "agenda.db"
 
+# =========================
+# BANCO
+# =========================
 def conn():
     return sqlite3.connect(DB_NAME, check_same_thread=False)
 
@@ -23,7 +48,9 @@ def init_db():
 def d2t(d): return d.strftime("%d/%m/%Y")
 def t2d(t): return datetime.strptime(t,"%d/%m/%Y")
 
+# =========================
 # CRUD
+# =========================
 def inserir_atividade(d,tipo,turma):
     conn().execute("INSERT INTO atividades_avaliativas VALUES(NULL,?,?,?)",(d2t(d),tipo,turma)).connection.commit()
 
@@ -54,7 +81,9 @@ def get_mon():
     df["data_obj"]=df["data"].apply(t2d)
     return df.sort_values("data_obj",ascending=False)
 
-# estado
+# =========================
+# ESTADO
+# =========================
 if "tela" not in st.session_state: st.session_state.tela="menu"
 if "modo_edicao" not in st.session_state: st.session_state.modo_edicao=False
 if "edit_id" not in st.session_state: st.session_state.edit_id=None
@@ -62,27 +91,53 @@ if "edit_tipo" not in st.session_state: st.session_state.edit_tipo=None
 
 init_db()
 
+# =========================
+# HEADER
+# =========================
 st.title("📚 SisteMat 📅")
 
+# =========================
 # MENU
+# =========================
 if st.session_state.tela=="menu":
     c1,c2,c3=st.columns(3)
-    if c1.button("Cadastrar atividade avaliativa"): st.session_state.tela="cad_a";st.rerun()
-    if c2.button("Cadastrar monitoria"): st.session_state.tela="cad_m";st.rerun()
-    if c3.button("Consultar"): st.session_state.tela="cons";st.rerun()
 
-# CADASTROS (mantidos simples)
+    if c1.button("Cadastrar atividade avaliativa"):
+        st.session_state.tela="cad_a";st.rerun()
+
+    if c2.button("Cadastrar monitoria"):
+        st.session_state.tela="cad_m";st.rerun()
+
+    if c3.button("Consultar"):
+        st.session_state.tela="cons";st.rerun()
+
+# =========================
+# CADASTRO ATIVIDADE
+# =========================
 elif st.session_state.tela=="cad_a":
-    if st.button("⬅ Voltar"): st.session_state.tela="menu";st.rerun()
+
+    if st.button("⬅ Voltar"):
+        st.session_state.tela="menu";st.rerun()
+
     with st.form("fa"):
         d=st.date_input("Data")
         t=st.selectbox("Turma",TURMAS)
         tp=st.selectbox("Tipo",TIPOS_AVALIACAO)
         ok=st.form_submit_button("Salvar")
-    if ok: inserir_atividade(d,tp,t); st.rerun()
 
+    if ok:
+        inserir_atividade(d,tp,t)
+        st.session_state.tela="menu"
+        st.rerun()
+
+# =========================
+# CADASTRO MONITORIA
+# =========================
 elif st.session_state.tela=="cad_m":
-    if st.button("⬅ Voltar"): st.session_state.tela="menu";st.rerun()
+
+    if st.button("⬅ Voltar"):
+        st.session_state.tela="menu";st.rerun()
+
     with st.form("fm"):
         d=st.date_input("Data")
         t=st.selectbox("Turma",TURMAS)
@@ -90,14 +145,25 @@ elif st.session_state.tela=="cad_m":
         c=st.text_area("Conteúdo")
         a=st.text_input("Arquivo")
         ok=st.form_submit_button("Salvar")
-    if ok: inserir_monitoria(d,t,m,c,a); st.rerun()
 
+    if ok:
+        inserir_monitoria(d,t,m,c,a)
+        st.session_state.tela="menu"
+        st.rerun()
+
+# =========================
 # CONSULTA
+# =========================
 elif st.session_state.tela=="cons":
 
-    if st.button("⬅ Voltar"): st.session_state.tela="menu";st.rerun()
+    if st.button("⬅ Voltar"):
+        st.session_state.tela="menu";st.rerun()
 
+    # =========================
+    # FILTROS
+    # =========================
     st.subheader("Filtros")
+
     c1,c2,c3 = st.columns(3)
 
     data_ini = c1.date_input("De", value=None)
@@ -135,7 +201,7 @@ elif st.session_state.tela=="cons":
             st.rerun()
 
     # =========================
-    # MODO EDIÇÃO ATIVIDADES
+    # MODO EDIÇÃO
     # =========================
     if st.session_state.modo_edicao:
         st.markdown("### ✏️ Alterar registros")
@@ -186,28 +252,34 @@ elif st.session_state.tela=="cons":
     else:
         for _, l in df.iterrows():
 
-            st.markdown(f"**{l['data']} | {l['turma']} | {l['monitor']}**")
-            st.write(f"CONTEÚDO: {l['conteudo']}")
+            col1, col2 = st.columns([8,2])
+
+            col1.markdown(f"**{l['data']} | {l['turma']} | {l['monitor']}**")
+            col1.markdown(f"CONTEÚDO: {l['conteudo']}")
 
             if l["arquivo_drive"]:
-                st.write(f"ARQUIVO: {l['arquivo_drive']}")
+                col1.markdown(f"ARQUIVO: {l['arquivo_drive']}")
 
-            c1,c2 = st.columns([1,1])
+            with col2:
+                b1, b2 = st.columns(2)
 
-            if c1.button("✏️", key=f"em{l['id']}"):
-                st.session_state.edit_id=l["id"]
-                st.session_state.edit_tipo="m"
-                st.session_state.tela="edit";st.rerun()
+                if b1.button("✏️", key=f"em{l['id']}"):
+                    st.session_state.edit_id=l["id"]
+                    st.session_state.edit_tipo="m"
+                    st.session_state.tela="edit";st.rerun()
 
-            if c2.button("🗑️", key=f"dm{l['id']}"):
-                deletar_monitoria(l["id"]);st.rerun()
+                if b2.button("🗑️", key=f"dm{l['id']}"):
+                    deletar_monitoria(l["id"]);st.rerun()
 
-            st.markdown("---")
+            st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
 
-# EDIT (igual antes)
+# =========================
+# EDIT
+# =========================
 elif st.session_state.tela=="edit":
 
-    if st.button("⬅ Voltar"): st.session_state.tela="cons";st.rerun()
+    if st.button("⬅ Voltar"):
+        st.session_state.tela="cons";st.rerun()
 
     if st.session_state.edit_tipo=="a":
         df=get_ativ()
