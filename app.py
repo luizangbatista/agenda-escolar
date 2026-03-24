@@ -347,20 +347,16 @@ elif st.session_state.tela == "cons":
         st.info("Nenhuma monitoria encontrada.")
     else:
         for _, linha in df_mon.iterrows():
-            col1, col2 = st.columns([10, 1], gap="small")
-
-            col1.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
-
-            with col2:
-                if st.button("🗑️", key=f"del_m_{linha['id']}", use_container_width=True):
-                    deletar_monitoria(linha["id"])
-                    st.rerun()
-
+            st.markdown(f"**{linha['data']} | {linha['turma']} | {linha['monitor']}**")
             st.markdown(f"CONTEÚDO: {linha['conteudo']}")
 
             arquivo = (linha["arquivo_drive"] or "").strip()
             if arquivo:
                 st.markdown(f"ARQUIVO: {arquivo}")
+
+            if st.button("🗑️", key=f"del_m_{linha['id']}", use_container_width=True):
+                deletar_monitoria(linha["id"])
+                st.rerun()
 
             st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
 
